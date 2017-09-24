@@ -1,0 +1,14 @@
+[MASTER]
+# Base names of files or directories to ignore.
+ignore=.git,__pycache__
+
+[BASIC]
+# Good variable names which should always be accepted.
+good-names=i,j,k,ex,e,Run,_,kw,db
+
+# Regular expression matching correct function names
+function-rgx=(([a-z][a-z0-9_]{2,30})|((test)?_[a-z0-9_]*))$
+
+[MISCELLANEOUS]
+# Note tags.
+notes=FIXME,TODO
