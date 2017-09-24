@@ -66,7 +66,12 @@ def db(engine):
         Base.metadata.create_all(conn)
     try:
         with engine.connect() as conn:
-            s = Session(bind=conn)
+            kw = dict(
+                _enable_transaction_accounting=False,  # default True
+                expire_on_commit=True, # default False
+                enable_baked_queries=True,  # default True
+            )
+            s = Session(bind=conn, expire_on_commit=True)
             with conn.begin() as tx:
                 kw = dict(
                     name=DEFAULT_NAME,
@@ -112,10 +117,23 @@ def orm_object_from_db_fixture(db):
     return db.session.query(Thing).one()
 
 
+@pytest.mark.usefixtures('orm_object_from_db_fixture')
+@pytest.fixture
+def orm_objects(orm_object_from_db_fixture):
+    return orm_object_from_db_fixture
+
+
+@pytest.mark.parametrize(params=[
+    (lambda : 42),
+    (lambda : 43),
+])
+def arg(request):
+    return request.param
+
+
 @pytest.fixture
 def original_id(db):
     return db.original_id
-
 
 
 @pytest.fixture
