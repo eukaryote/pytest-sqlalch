@@ -1,5 +1,4 @@
-import pprint
-import sys
+#pylint: disable=missing-docstring,unused-argument
 
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
@@ -10,7 +9,8 @@ from .models import Thing
 
 from .conftest import DEFAULT_NAME, DEFAULT_CREATED_BY, EXTRA_NAME
 
-missing = object()
+MISSING = object()
+TABLE = Thing.__table__
 
 
 # TODO: make 'updater' and 'verifier' fixtures that are composable
@@ -24,21 +24,21 @@ missing = object()
 # the possible pairs of (updater, verifier) fixtures...
 
 
-def get(session, name, created_by=missing):
+def get(session, name, created_by=MISSING):
     kw = dict(name=name)
-    if created_by is not missing:
+    if created_by is not MISSING:
         kw['created_by'] = created_by
     return session.query(Thing).filter_by(**kw).first()
 
 
-def put(session, name, created_by=missing):
+def put(session, name, created_by=MISSING):
     kw = dict(name=name)
-    if created_by is not missing:
+    if created_by is not MISSING:
         kw['created_by'] = created_by
-    t = Thing(**kw)
-    session.add(t)
+    obj = Thing(**kw)
+    session.add(obj)
     session.flush()
-    return t
+    return obj
 
 
 def count(session):
@@ -109,8 +109,8 @@ def test_fail_integrity_constraint_error_caught_then_rollback(session):
 
 
 def test_create_extra_obj_no_commit(session):
-    t = put(session, EXTRA_NAME)
-    assert get(session, EXTRA_NAME) == t
+    obj = put(session, EXTRA_NAME)
+    assert get(session, EXTRA_NAME) == obj
 
 
 def test_extra_does_not_exist(session):
@@ -118,9 +118,9 @@ def test_extra_does_not_exist(session):
 
 
 def test_create_extra_obj_commit(session):
-    t = put(session, EXTRA_NAME)
+    obj = put(session, EXTRA_NAME)
     session.commit()
-    assert get(session, EXTRA_NAME) == t
+    assert get(session, EXTRA_NAME) == obj
 
 
 def test_extra_does_not_exist_after_previous_commit(session):
@@ -130,11 +130,10 @@ def test_extra_does_not_exist_after_previous_commit(session):
 def test_bypass_session_and_commit_no_new_tx_no_sess_begin(db):
     conn = db.connection
     obj = db.obj
-    t = Thing.__table__
     new_name = 'bypassing-session'
 
     def getall(conn):
-        return sorted(conn.execute(select([t.c.name])))
+        return sorted(conn.execute(select([TABLE.c.name])))
 
     with conn.begin_nested():
         assert getall(conn) == [(DEFAULT_NAME,)]
@@ -147,7 +146,7 @@ def test_bypass_session_and_commit_no_new_tx_no_sess_begin(db):
         assert getall(conn) == [(DEFAULT_NAME,)]
     with db.session.begin(subtransactions=True):
         assert getall(conn) == [(DEFAULT_NAME,)]
-        stmt = t.update().values(name=new_name).where(t.c.id == obj.id)
+        stmt = TABLE.update().values(name=new_name).where(TABLE.c.id == obj.id)
         conn.execute(stmt)
         assert getall(conn) == [(new_name,)]
 
@@ -168,31 +167,28 @@ def test_bypass_session_and_commit_no_new_tx_no_sess_begin(db):
 
 
 def test_bypass_session_and_commit_no_new_tx_no_sess_begin_nested(db):
-    d = db
-    conn = d.session.connection()
-    obj = d.obj
-    t = Thing.__table__
+    conn = db.session.connection()
+    obj = db.obj
     new_name = 'bypassing-session'
 
     def getall(conn):
-        return sorted(conn.execute(select([t.c.name])))
+        return sorted(conn.execute(select([TABLE.c.name])))
 
     assert getall(conn) == [(DEFAULT_NAME,)]
-    stmt = t.update().values(name=new_name).where(t.c.id == obj.id)
+    stmt = TABLE.update().values(name=new_name).where(TABLE.c.id == obj.id)
 
     with conn.begin():
         assert getall(conn) == [(DEFAULT_NAME,)]
 
-    with d.session.begin_nested():
-        d.session.execute(stmt)
+    with db.session.begin_nested():
+        db.session.execute(stmt)
         assert getall(conn) == [(new_name,)]
 
     assert getall(conn) == [(new_name,)]
 
 
 def test_bypass_session_name_change_reverted_query_connection_no_sess1(db):
-    d = db
-    assert list(d.session.query(Thing.name).all()) == [(DEFAULT_NAME,)]
+    assert list(db.session.query(Thing.name).all()) == [(DEFAULT_NAME,)]
 
 
 def test_use_preseeded_thing_session_using_method_no_sess1(obj):
@@ -202,14 +198,13 @@ def test_use_preseeded_thing_session_using_method_no_sess1(obj):
 def test_bypass_session_and_commit_new_tx_no_sess(db):
     conn = db.connection
     obj = db.obj
-    t = Thing.__table__
     new_name = 'bypassing-session'
 
     def getall(conn):
-        return sorted(conn.execute(select([t.c.name])))
+        return sorted(conn.execute(select([TABLE.c.name])))
 
     assert getall(conn) == [(obj.name,)]
-    stmt = t.update().values(name=new_name).where(t.c.id == obj.id)
+    stmt = TABLE.update().values(name=new_name).where(TABLE.c.id == obj.id)
 
     with conn.begin():
         conn.execute(stmt)
@@ -224,15 +219,13 @@ def test_bypass_session_and_commit_new_tx_no_sess(db):
 
 def test_bypass_session_name_change_reverted_query_connection_no_sess2(db):
     conn = db.connection
-    t = Thing.__table__
-    rows = sorted(conn.execute(select([t.c.name])))
+    rows = sorted(conn.execute(select([TABLE.c.name])))
     assert rows == [(DEFAULT_NAME,)]
 
 
 def test_bypass_session_name_change_reverted_query_session_no_sess2(db):
     session = db.session
     session.flush()
-    t = Thing.__table__
     rows = sorted((x.name, ) for x in session.query(Thing).all())
     assert rows == [(DEFAULT_NAME,)]
 
@@ -244,14 +237,13 @@ def test_use_preseeded_thing_session_using_method_no_sess2(session, obj):
 def test_bypass_session_and_commit_new_tx_nested_no_sess(db):
     conn = db.connection
     obj = db.obj
-    t = type(obj).__table__
     new_name = 'bypassing-session'
 
     def getall(conn):
-        return sorted(conn.execute(select([t.c.name])))
+        return sorted(conn.execute(select([TABLE.c.name])))
 
     assert getall(conn) == [(obj.name,)]
-    stmt = t.update().values(name=new_name).where(t.c.id == obj.id)
+    stmt = TABLE.update().values(name=new_name).where(TABLE.c.id == obj.id)
     with conn.begin_nested():
         conn.execute(stmt)
         assert getall(conn) == [(new_name,)]
@@ -262,9 +254,8 @@ def test_bypass_session_and_commit_new_tx_nested_no_sess(db):
 
 def test_bypass_session_name_change_reverted_query_connection_no_sess3(db):
     conn = db.connection
-    t = Thing.__table__
     with conn.begin_nested():
-        rows = sorted(conn.execute(select([t.c.name])))
+        rows = sorted(conn.execute(select([TABLE.c.name])))
         assert rows == [(DEFAULT_NAME,)]
 
 
@@ -282,14 +273,13 @@ def test_x_session_use_preseeded_thing_session_using_method_no_sess3(obj):
 def test_bypass_session_and_commit_no_new_tx(db, session):
     conn = db.connection
     obj = db.obj
-    t = type(obj).__table__
     new_name = 'bypassing-session'
 
     def getall(conn):
-        return sorted(conn.execute(select([t.c.name])))
+        return sorted(conn.execute(select([TABLE.c.name])))
 
     assert getall(conn) == [(DEFAULT_NAME,)]
-    stmt = t.update().values(name=new_name).where(t.c.id == obj.id)
+    stmt = TABLE.update().values(name=new_name).where(TABLE.c.id == obj.id)
     with conn.begin_nested():
         conn.execute(stmt)
         assert getall(conn) == [(new_name,)]
@@ -319,14 +309,13 @@ def test_use_preseeded_thing_session_using_method1(session, obj):
 def test_xbypass_session_and_commit_new_tx(db, session):
     conn = db.connection
     obj = db.obj
-    t = Thing.__table__
     new_name = 'bypassing-session'
 
     def getall(conn):
-        return sorted(conn.execute(select([t.c.name])))
+        return sorted(conn.execute(select([TABLE.c.name])))
 
     assert getall(conn) == [(obj.name,)]
-    stmt = t.update().values(name=new_name).where(t.c.id == obj.id)
+    stmt = TABLE.update().values(name=new_name).where(TABLE.c.id == obj.id)
 
     with conn.begin():
         conn.execute(stmt)
@@ -360,13 +349,12 @@ def test_bypass_session_and_commit_new_tx_nested(db, session):
     conn = db.connection
     obj = db.obj
     new_name = 'bypassing-session'
-    t = Thing.__table__
 
     def getall(conn):
-        return sorted(conn.execute(select([t.c.name])))
+        return sorted(conn.execute(select([TABLE.c.name])))
 
     assert getall(conn) == [(obj.name,)]
-    stmt = t.update().values(name=new_name).where(t.c.id == obj.id)
+    stmt = TABLE.update().values(name=new_name).where(TABLE.c.id == obj.id)
     with conn.begin_nested():
         conn.execute(stmt)
     assert getall(conn) == [(new_name,)]
@@ -374,15 +362,13 @@ def test_bypass_session_and_commit_new_tx_nested(db, session):
 
 def test_bypass_session_name_change_reverted_query_connection3(db):
     conn = db.connection
-    t = Thing.__table__
-    rows = sorted(conn.execute(select([t.c.name])))
+    rows = sorted(conn.execute(select([TABLE.c.name])))
     assert rows == [(DEFAULT_NAME,)]
 
 
 def test_bypass_session_name_change_reverted_query_session3(db):
     session = db.session
     session.flush()
-    t = Thing.__table__
     rows = sorted((x.name, ) for x in session.query(Thing).all())
     assert rows == [(DEFAULT_NAME,)]
 
