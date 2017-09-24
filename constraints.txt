@@ -1,0 +1,24 @@
+pytest==3.2.2
+pytest-xdist==1.20.0
+ipython==6.2.0
+ipdb==0.10.3
+## The following requirements were added by pip freeze:
+apipkg==1.4
+decorator==4.1.2
+execnet==1.4.1
+ipython-genutils==0.2.0
+jedi==0.11.0
+parso==0.1.0
+pexpect==4.2.1
+pickleshare==0.7.4
+prompt-toolkit==1.0.15
+psycopg2==2.7.3.1
+ptyprocess==0.5.2
+py==1.4.34
+Pygments==2.2.0
+pytest-forked==0.2
+simplegeneric==0.8.1
+six==1.11.0
+SQLAlchemy==1.1.14
+traitlets==4.3.2
+wcwidth==0.1.7
