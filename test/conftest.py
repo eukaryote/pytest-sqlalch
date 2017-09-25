@@ -17,6 +17,8 @@ DEFAULT_CREATED_BY = 'user-default'
 EXTRA_NAME = 'name-extra'
 EXTRA_CREATED_BY = 'user-extra'
 
+AUTOUSE_SESSION = True
+
 Session = sessionmaker()
 
 
@@ -57,9 +59,13 @@ def db(engine):
     Fixture that does one-time setup and teardown of db tables.
 
     Transation management and rolling back after each test is provided
-    via the `session` fixture, which is autouse in order to greatly
-    simplify transaction handling needed to support all the corner
-    cases that are tested by the test suite.
+    via the `session` fixture.
+
+    In order to have state rolled back completely and reliably for
+    every test that uses the database, test functions should
+    explicitly depend on the `session` fixture, which has 'function' scope
+    (unless `AUTOUSE_SESSION` is true, in which case the `session` fixture
+    is automatically run before every test function).
     """
 
     with engine.connect() as conn:
